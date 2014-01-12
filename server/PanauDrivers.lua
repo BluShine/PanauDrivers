@@ -392,10 +392,13 @@ function PanauDrivers:PlayerTakeJob( args, player )
 		return false
 	end
 	
-	--print("taking job: " .. tostring(args.job))
 	local thatJob = self.availableJobs[args.job]
+	if thatJob == nil then
+		player:SendChatMessage("you tried to accept a job that doesn't exist!", Color( 255, 0, 0 ) )
+		return false
+	end
 	if type(thatJob.vehicle) != "number" then
-		player:SendChatMessage("invalid job, something is broken", Color( 255, 0, 0 ) )
+		player:SendChatMessage("job does not have a valid vehicle, something is broken", Color( 255, 0, 0 ) )
 		return false
 	end
 	local jobDist = self.locations[thatJob.start].position:Distance(player:GetPosition())
