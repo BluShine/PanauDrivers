@@ -22,6 +22,7 @@ end
 --init---------------------------------
 function PanauDrivers:__init()
 	--variables
+	self.isVisible = true
 	self.locations = {}
 	self.availableJob = nil
 	availableJobKey = 0
@@ -65,6 +66,25 @@ function PanauDrivers:__init()
 	Events:Subscribe( "Render", self, self.Render)
 	Events:Subscribe( "KeyDown", self, self.KeyDown)
 	Events:Subscribe( "PreTick", self, self.PreTick)
+	Events:Subscribe( "LocalPlayerChat", self, self.LocalPlayerChat)
+end
+
+function PanauDrivers:LocalPlayerChat( args )
+	local msg = args.text
+	if msg == "/help" or msg == "/h" then
+		Chat:Print("/panaudrivers to disable or enable Panau Drivers jobs", Color(255,255,0))
+		return false
+	end
+	if msg == "/panaudrivers" then
+		if self.isVisible == true then
+			self.isVisible = false
+			Chat:Print("Panau Drivers hidden", Color(255,255,0))
+		else 
+			self.isVisible = true
+			Chat:Print("Panau Drivers enabled", Color(255,255,0))
+		end
+		return false
+	end
 end
 
 function PanauDrivers:Locations( args )
@@ -198,6 +218,7 @@ function PanauDrivers:Render()
 	self.window:SetVisible( false )
 	if Game:GetState() ~= GUIState.Game then return end
 	if LocalPlayer:GetWorld() ~= DefaultWorld then return end
+	if self.isVisible == false then return end
 	
 	if self.jobsTable != nil then
 		for k, v in ipairs(self.locations) do
