@@ -1,5 +1,5 @@
 -- Panau Runners (client)
--- 0.1.0
+-- 0.1.1
 -- A delivery gamemode in the style of "Crazy Taxi"
 -- BluShine
 -- released 1/12/2014
@@ -23,15 +23,47 @@ end
 function PanauDrivers:__init()
 	--variables
 	self.isVisible = true
+	self.arrowVisible = true
+	self.locationsVisible = true
 	self.locations = {}
 	self.availableJob = nil
 	availableJobKey = 0
 	self.job = nil
 	self.jobUpdateTimer = Timer()
 	self.jobCompleteTimer = Timer()
-	--self.jobOpen = false
 	
-	--GUI
+	--GUI config menu
+	self.configW = Window.Create()
+	self.configW:SetSize( Vector2( 300, 100 ) )
+	self.configW:SetPosition( (Render.Size - self.configW:GetSize())/2 )
+	self.configW:SetTitle( "Panau Drivers Settings" )
+	self.configW:SetVisible( false )
+	
+	local visibleCheck = LabeledCheckBox.Create( self.configW )
+    visibleCheck:SetSize( Vector2( 300, 20 ) )
+    visibleCheck:SetDock( GwenPosition.Top )
+    visibleCheck:GetLabel():SetText( "Visible" )
+    visibleCheck:GetCheckBox():SetChecked( self.isVisible )
+    visibleCheck:GetCheckBox():Subscribe( "CheckChanged", 
+        function() self.isVisible = visibleCheck:GetCheckBox():GetChecked() end )
+
+    local arrowCheck = LabeledCheckBox.Create( self.configW )
+    arrowCheck:SetSize( Vector2( 300, 20 ) )
+    arrowCheck:SetDock( GwenPosition.Top )
+    arrowCheck:GetLabel():SetText( "Show green arrow" )
+    arrowCheck:GetCheckBox():SetChecked( self.arrowVisible )
+    arrowCheck:GetCheckBox():Subscribe( "CheckChanged", 
+        function() self.arrowVisible = arrowCheck:GetCheckBox():GetChecked() end )
+		
+	local locationCheck = LabeledCheckBox.Create( self.configW )
+    locationCheck:SetSize( Vector2( 300, 20 ) )
+    locationCheck:SetDock( GwenPosition.Top )
+    locationCheck:GetLabel():SetText( "Show locations" )
+    locationCheck:GetCheckBox():SetChecked( self.locationsVisible )
+    locationCheck:GetCheckBox():Subscribe( "CheckChanged", 
+        function() self.locationsVisible = locationCheck:GetCheckBox():GetChecked() end )
+	
+	--GUI button
 	self.window = Window.Create()
 	self.window:SetSize( Vector2( 300, 110 ))
 	self.window:SetPositionRel( Vector2( 0.5, 0.8 ) - self.window:GetSizeRel()/2 )
@@ -67,6 +99,8 @@ function PanauDrivers:__init()
 	Events:Subscribe( "KeyDown", self, self.KeyDown)
 	Events:Subscribe( "PreTick", self, self.PreTick)
 	Events:Subscribe( "LocalPlayerChat", self, self.LocalPlayerChat)
+	Events:Subscribe( "ModulesLoad", self, self.ModulesLoad )
+    Events:Subscribe( "ModuleUnload", self, self.ModuleUnload )
 end
 
 function PanauDrivers:LocalPlayerChat( args )
@@ -75,16 +109,38 @@ function PanauDrivers:LocalPlayerChat( args )
 		Chat:Print("/panaudrivers to disable or enable Panau Drivers jobs", Color(255,255,0))
 		return false
 	end
-	if msg == "/panaudrivers" then
-		if self.isVisible == true then
-			self.isVisible = false
-			Chat:Print("Panau Drivers hidden", Color(255,255,0))
+	if msg == "/panaudrivers" or msg == "/drive" then
+		if self.configW:GetVisible() == true then
+			self.configW:SetVisible( false )
 		else 
-			self.isVisible = true
-			Chat:Print("Panau Drivers enabled", Color(255,255,0))
+			self.configW:SetVisible( true )
 		end
 		return false
 	end
+end
+
+function PanauDrivers:LocalPlayerInput( args )
+    if self.configW:GetVisible() == true and Game:GetState() == GUIState.Game then
+        return false
+    end
+end
+
+function PanauDrivers:ModulesLoad()
+    Events:Fire( "HelpAddItem",
+        {
+            name = "PanauDrivers",
+            text = 
+                "Panau Drivers is a script that generates delivery " ..
+                "jobs all over panau.\n\nTo configure or disable it, " ..
+                "type /panaudrivers or /drive in chat."
+        } )
+end
+
+function PanauDrivers:ModuleUnload()
+    Events:Fire( "HelpRemoveItem",
+        {
+            name = "PanauDrivers"
+        } )
 end
 
 function PanauDrivers:Locations( args )
@@ -167,10 +223,10 @@ function PanauDrivers:DrawLocation(k, v, dist, dir)
 
     Render:SetTransform( t )
 
-
-	self:DrawShadowedText( Vector3( 0, 0, 0 ), text, Color( 255, 255, 255, textAlpha ), textSize )
+	if self.locationsVisible == true then
+		self:DrawShadowedText( Vector3( 0, 0, 0 ), text, Color( 255, 255, 255, textAlpha ), textSize ) end
 	
-	if dist <= 256 then
+	if dist <= 256 and self.locationsVisible == true then
 		t2 = Transform3()
 		local upAngle = Angle(0, math.pi/2, 0)
 		t2:Translate(v.position):Rotate(upAngle)
@@ -214,6 +270,7 @@ function PanauDrivers:DrawLocation(k, v, dist, dir)
 end
 
 function PanauDrivers:Render()
+	Mouse:SetVisible( self.configW:GetVisible() )
 	availableJob = nil
 	self.window:SetVisible( false )
 	if Game:GetState() ~= GUIState.Game then return end
@@ -239,7 +296,7 @@ function PanauDrivers:Render()
 		Render:DrawText( textPos, text, Color( 192, 255, 192 ))
 		--job arrow
 		pVehicle = LocalPlayer:GetVehicle()
-		if pVehicle != nil then
+		if pVehicle != nil and self.arrowVisible == true then
 			destPos = self.locations[self.job.destination].position
 			arrowDir = pVehicle:GetPosition() - destPos
 			arrowDir:Normalize()

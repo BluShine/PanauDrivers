@@ -1,5 +1,5 @@
 -- Panau Runners (server)
--- 0.1.0
+-- 0.1.1
 -- A delivery gamemode in the style of "Crazy Taxi"
 -- BluShine
 -- released 1/12/2014
@@ -203,7 +203,6 @@ end
 
 function PanauDrivers:GetRandomVehicleOfType(vehicleType)
 	--do the sacred ritual to make math.random numbers actually probably kinda random
-	math.randomseed(os.time())
 	--sacrifice a few random numbers to the luck gods, pray for them to grant us a truly random number
 	math.random()
 	math.random()
@@ -228,7 +227,6 @@ end
 
 function PanauDrivers:GetRandomDestination(startType, key)
 	--do the sacred ritual to make math.random numbers actually probably kinda random
-	math.randomseed(os.time())
 	--sacrifice a few random numbers to the luck gods, pray for them to grant us a truly random number
 	math.random()
 	math.random()
