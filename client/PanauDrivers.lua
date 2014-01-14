@@ -3,7 +3,7 @@
 -- A delivery gamemode in the style of "Crazy Taxi"
 -- BluShine
 -- released 1/12/2014
--- updated 1/12/2014
+-- updated 1/14/2014
 
 class 'PanauDrivers'
 
@@ -190,7 +190,6 @@ function PanauDrivers:KeyDown( a )
 	else
 		self.windowButton:SetTextColor(Color(255, 255, 255))
 	end
-	
 end
 
 function PanauDrivers:DrawLocation(k, v, dist, dir)
@@ -297,28 +296,48 @@ function PanauDrivers:Render()
 		--job arrow
 		pVehicle = LocalPlayer:GetVehicle()
 		if pVehicle != nil and self.arrowVisible == true then
+			--calculate arrow direction
 			destPos = self.locations[self.job.destination].position
 			arrowDir = pVehicle:GetPosition() - destPos
 			arrowDir:Normalize()
+			arrowDir = arrowDir
+			arrowDir.y = -arrowDir.y
+			arrowDir.z = -arrowDir.z
+			arrowDir.x = -arrowDir.x
 			dirCp = arrowDir:Cross( Vector3(0, 1, 0) )
 			dirCn = Vector3(0, 1, 0):Cross( arrowDir )
 			Render:ResetTransform()
-			t3 = Transform3()
-			t3:Translate(pVehicle:GetPosition() + Vector3( 0, 0, 0 ))
-			Render:SetTransform(t3)
-			--arrow1 = Vector3( 0, 3, 0 )
-			--arrow2 = Vector3( 0, 9, 0 )
-			arrow1 = dirCp * 4
-			arrow2 = dirCn * 4
-			arrow3 = Vector3( 0, 0, 0 ) - (arrowDir * 4)
-			shaft1 = dirCp * 2
-			shaft2 = dirCn * 2
-			shaft3 = shaft1 + (arrowDir * 4)
-			shaft4 = shaft2 + (arrowDir * 4)
+			--make the arrow segments
+			arrowScale = Render.Height * .05
+			arrow1 = dirCp * arrowScale * 2
+			arrow2 = dirCn * arrowScale * 2
+			arrow3 = Vector3( 0, 0, 0 ) - (arrowDir * arrowScale * 2)
+			shaft1 = dirCp * arrowScale
+			shaft2 = dirCn * arrowScale
+			shaft3 = shaft1 + (arrowDir * arrowScale * 2)
+			shaft4 = shaft2 + (arrowDir * arrowScale * 2)
+			--multiply by camera angle to flatten everything relative to the camera
+			local ang = Camera:GetAngle():Inverse()
+			arrow1 = ang * arrow1
+			arrow2 = ang * arrow2
+			arrow3 = ang * arrow3
+			shaft1 = ang * shaft1
+			shaft2 = ang * shaft2
+			shaft3 = ang * shaft3
+			shaft4 = ang * shaft4
+			--turn 3d in to 2d
+			center = Vector2( Render.Width / 2, Render.Height / 2 )
+			arrow1 = Vector2( -arrow1.x, arrow1.y ) + center
+			arrow2 = Vector2( -arrow2.x, arrow2.y ) + center
+			arrow3 = Vector2( -arrow3.x, arrow3.y ) + center
+			shaft1 = Vector2( -shaft1.x, shaft1.y ) + center
+			shaft2 = Vector2( -shaft2.x, shaft2.y ) + center
+			shaft3 = Vector2( -shaft3.x, shaft3.y ) + center
+			shaft4 = Vector2( -shaft4.x, shaft4.y ) + center
+			--render everything
 			Render:FillTriangle(arrow1, arrow2, arrow3, Color(64, 255, 64, 128))
 			Render:FillTriangle(shaft1, shaft2, shaft3, Color(64, 255, 64, 128))
 			Render:FillTriangle(shaft2, shaft3, shaft4, Color(64, 255, 64, 128))
-			Render:ResetTransform()
 		end
 	end
 	
