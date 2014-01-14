@@ -14,7 +14,7 @@ local locationNotInVehicle = "you must be in a vehicle to set a location"
 local giveHelp = "type '/give 0 1' where 0 is a player ID and 1 is the $ amount. Use f6 to find player IDs"
 --vehicle type tables
 --not included in a table: dlc vehicles, tractor
-local groundVehicles = {66, 12, 54, 23, 33, 68, 78, 8, 35, 44, 2, 7, 29, 70, 55, 15, 91, 21, 83, 32, 79, 22, 9, 22, 9, 4, 41, 49, 71, 42, 76, 31}
+local groundVehicles = {66, 12, 54, 23, 33, 68, 78, 8, 35, 44, 2, 7, 29, 70, 55, 15, 91, 21, 83, 32, 79, 22, 9, 4, 41, 49, 71, 42, 76, 31}
 local offroadVehicles = {11, 36, 72, 73, 26, 63, 86, 77, 48, 84, 46, 10, 52, 13, 60, 87, 74, 43, 89, 90, 61, 47, 18, 56, 40}
 local waterVehicles = {80, 38, 88, 45, 6, 19, 5, 27, 28, 25, 69, 16, 50}
 local heliVehicles = {64, 65, 14, 67, 3, 37, 57, 62}
@@ -27,9 +27,9 @@ local hardVehicles = {59, 38, 5, 25, 66, 12, 8, 1, 40}
 local harderVehicles = {39, 75, 85, 50}
 --"difficulty" multipliers
 local easy = 1
-local medium = 1.2
-local hard = 1.4
-local harder = 1.6
+local medium = 1.33
+local hard = 1.66
+local harder = 2
 --distance multiplier for rewards
 local rewardMultiplier = 0.05
 
@@ -406,7 +406,12 @@ function PanauDrivers:PlayerTakeJob( args, player )
 		--spawn vehicle
 		local vArgs = {}
 		vArgs.model_id = thatJob.vehicle
-		vArgs.position = self.locations[thatJob.start].position
+		--if it's the H-62 Quapaw, spawn it a bit higher up or else it'll sometimes randomly explode
+		if vArgs.model_id == 65 then
+			vArgs.position = self.locations[thatJob.start].position + Vector3(0, 2.5, 0)
+		else
+			vArgs.position = self.locations[thatJob.start].position
+		end
 		vArgs.angle = self.locations[thatJob.start].angle
 		vArgs.enabled = true
 		vArgs.world = player:GetWorld()
