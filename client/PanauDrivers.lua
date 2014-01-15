@@ -25,6 +25,7 @@ function PanauDrivers:__init()
 	self.isVisible = true
 	self.arrowVisible = true
 	self.locationsVisible = true
+	self.locationsAutoHide = true
 	self.locations = {}
 	self.availableJob = nil
 	availableJobKey = 0
@@ -34,7 +35,7 @@ function PanauDrivers:__init()
 	
 	--GUI config menu
 	self.configW = Window.Create()
-	self.configW:SetSize( Vector2( 300, 100 ) )
+	self.configW:SetSize( Vector2( 300, 150 ) )
 	self.configW:SetPosition( (Render.Size - self.configW:GetSize())/2 )
 	self.configW:SetTitle( "Panau Drivers Settings" )
 	self.configW:SetVisible( false )
@@ -62,6 +63,14 @@ function PanauDrivers:__init()
     locationCheck:GetCheckBox():SetChecked( self.locationsVisible )
     locationCheck:GetCheckBox():Subscribe( "CheckChanged", 
         function() self.locationsVisible = locationCheck:GetCheckBox():GetChecked() end )
+		
+	local locationAutoCheck = LabeledCheckBox.Create( self.configW )
+    locationAutoCheck:SetSize( Vector2( 300, 20 ) )
+    locationAutoCheck:SetDock( GwenPosition.Top )
+    locationAutoCheck:GetLabel():SetText( "Auto-hide locations on job start" )
+    locationAutoCheck:GetCheckBox():SetChecked( self.locationsAutoHide )
+    locationAutoCheck:GetCheckBox():Subscribe( "CheckChanged", 
+        function() self.locationsAutoHide = locationAutoCheck:GetCheckBox():GetChecked() end )
 	
 	--GUI button
 	self.window = Window.Create()
@@ -158,16 +167,25 @@ end
 function PanauDrivers:JobStart( args )
 	self.job = args
 	Waypoint:SetPosition(self.locations[self.job.destination].position)
+	if self.locationsAutoHide == true then
+		self.locationsVisible = false
+	end
 end
 
 function PanauDrivers:JobFinish( args )
 	self.job = nil
 	Waypoint:Remove()
+	if self.locationsAutoHide == true then
+		self.locationsVisible = true
+	end
 end
 
 function PanauDrivers:JobCancel( args )
 	self.job = nil
 	Waypoint:Remove()
+	if self.locationsAutoHide == true then
+		self.locationsVisible = true
+	end
 end
 
 function PanauDrivers:PreTick( args )
