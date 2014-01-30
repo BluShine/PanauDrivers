@@ -51,6 +51,8 @@ local companyDeniedText = "you have been denied from the company"
 local companyAlreadyOnJobText = "players in your company are still on a job"
 local compJobAcceptText = "company job accepted, please move away to let other employees spawn"
 local compFinishJobText = "company job finished, bonus: $"
+local companyJoinInAnotherText = "can't join a company, you're already in one!"
+local companyJoinOnJob = "can't join a company, you're on a job!"
 
 --"/co join <name>" to join a company
 	--"/co leave" to leave
@@ -454,6 +456,10 @@ function PanauDrivers:OnPlayerChat(args)
 				args.player:SendChatMessage( companyAlreadyExistsText , Color(255,0,0))
 				return false
 			end
+			if self.playerComps[args.player:GetId()] != nil then
+				args.player:SendChatMessage( companyJoinInAnotherText, Color(255,0,0))
+				return false
+			end
 			if self.playerJobs[args.player:GetId()] != nil then
 				args.player:SendChatMessage( companyCreateInJobText , Color(255,0,0))
 				return false
@@ -507,6 +513,14 @@ function PanauDrivers:OnPlayerChat(args)
 		end
 		
 		if inputSlices[2] == "join" then
+			if self.playerComps[args.player:GetId()] != nil then
+				args.player:SendChatMessage( companyJoinInAnotherText, Color(255,0,0))
+				return false
+			end
+			if self.playerJobs[args.player:GetId()] != nil then
+				args.player:SendChatMessage( companyJoinOnJob, Color(255,0,0))
+				return false
+			end
 			if inputSlices[3] == nil then
 				args.player:SendChatMessage( companyJoinNilText, Color(255,0,0))
 				return false
