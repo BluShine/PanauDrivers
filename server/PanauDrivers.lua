@@ -1,17 +1,63 @@
 -- Panau Runners (server)
--- 0.1.1
+-- 0.2.0_beta
 -- A delivery gamemode in the style of "Crazy Taxi"
 -- BluShine
 -- released 1/12/2014
--- updated 1/14/2014
+-- updated 1/30/2014
 
 class 'PanauDrivers'
 
 ---------------------------config stuff------------------------------------
 --chat messages, easy access for translation
-local locationHelp = "give a vehicle type and name: /location H-mhc"
-local locationNotInVehicle = "you must be in a vehicle to set a location"
-local giveHelp = "type '/give 0 1' where 0 is a player ID and 1 is the $ amount. Use f6 to find player IDs"
+local locationHelpText = "give a vehicle type and name: /location H-mhc"
+local locationNotInVehicleText = "you must be in a vehicle to set a location"
+local jobNotInVehicleText = "can't start a job when you're in a vehicle"
+local jobWaitText = "slow down, wait a bit before starting a new job!"
+local jobDoesntExistText = "you tried to accept a job that doesn't exist!"
+local jobInvalidVehicleText = "job does not have a valid vehicle, something is broken"
+local jobAcceptText = "job accepted"
+local jobGetCloserText = "get closer to take the job"
+local jobRewardText = "job completed! Reward $"
+local companyHelpCommandText = "/co help - lists company commands"
+local companyInfoText = "you are in company: "
+local companyHelpText1 = "/co create companyname - creates a company"
+local companyHelpText2 = "/co join companyname - join a company"
+local companyHelpText3 = "/co players - lists players in your company"
+local companyHelpText4 = "/co leave - leave your company"
+local companyHelpText5 = "/co kick playerID - kick a player (press f6 for IDs)"
+local companyNoNameText = "you need a name for your company"
+local companyAlreadyExistsText = "this company already exists"
+local companyCreateInJobText = "can't create a company if you're on a job"
+local companyCreateText = "created your company, "
+local companyLeaveNilText = "you can't leave a company, you're not in one!"
+local companyLeaveText = "you left the company"
+local companyDisbandText = "you were the last employee, the company was disbanded"
+local companyJoinNilText = "type \"/co join companyname\" where companyname is the company to join"
+local companyJoinDoesntExistText = "the company you're trying to join doesn't exist"
+local companyRequestToJoinText = "you have requested to join the company"
+local companyRequestAgainText = "your request is still waiting for approval"
+local companyRequestAlreadyInText = "you're already in the company!"
+local companyJoinRequestText = " has requested to join your company. /co y or /co n"
+local companyNotBossText = "you can't do that, you aren't the boss"
+local companyNotInText = "you can't do that, you aren't in a company"
+local companyNoRequestsText = "no players in the company request queue"
+local companyAcceptPlayerText = " has joined the company"
+local companyDenyPlayerText = " has been denied from your company"
+local companyInvalidArgText = "invalid command"
+local companyKickPlayerText = " has been kicked from the company"
+local companyPlayerDoesntExist = "that player does not exist"
+local jobTakeNotBossText = "you can't take a job if you're not the company boss"
+local companyDeniedText = "you have been denied from the company"
+local companyAlreadyOnJobText = "players in your company are still on a job"
+local compJobAcceptText = "company job accepted, please move away to let other employees spawn"
+local compFinishJobText = "company job finished, bonus: $"
+
+--"/co join <name>" to join a company
+	--"/co leave" to leave
+	--"/co kick <ID>" to kick a player
+	--"/co boss <ID>" to make someone else the boss
+	--"/co leave" to leave company
+
 --vehicle type tables
 --not included in a table: dlc vehicles, tractor
 local groundVehicles = {66, 12, 54, 23, 33, 68, 78, 8, 35, 44, 2, 7, 29, 70, 55, 15, 91, 21, 83, 32, 79, 22, 9, 4, 41, 49, 71, 42, 76, 31}
@@ -32,6 +78,8 @@ local hard = 1.66
 local harder = 2
 --distance multiplier for rewards
 local rewardMultiplier = 0.05
+--bonus multiplier per player completing a company job, default is 10%
+local companyBonusMultiplier = 0.1
 
 ----------------------------utility functions------------------------
 --simple function to check if a string starts with a string
@@ -68,6 +116,11 @@ function PanauDrivers:__init()
 	--timer and table for cancelling jobs
 	self.jobCancelTimer = Timer()
 	self.jobsToCancel = {}
+	--table of companies
+	--each company .employees (table of player ids), .boss (ID of boss), .job, .jobStatus (table of .player (ID), .status "waiting" "driving" "finished" "cancelled")
+	self.companies = {}
+	--table, key=playerId value=company name
+	self.playerComps = {}
 	
 	--load vehicles locations
 	self:LoadLocations( "locations.txt" )
@@ -314,6 +367,19 @@ function PanauDrivers:GetRandomDestination(startType, key)
 	return r
 end
 
+function PanauDrivers:getComp(str)
+	for k,v in ipairs(self.companies) do
+		if v.name == str then
+			return k
+		end
+	end
+	return false
+end
+
+function PanauDrivers:compByPId(id)
+	return self.companies[self:getComp(self.playerComps[id])]
+end
+
 --events-----------------
 
 function PanauDrivers:OnPlayerChat(args)
@@ -324,7 +390,7 @@ function PanauDrivers:OnPlayerChat(args)
 	--example: "/l J-Panau International Airport"
 	--[[
 	if string.starts(args.text, "/l") and string.len(args.text) <= 5 or string == "/l help" then
-		args.player:SendChatMessage(locationHelp, Color(255,0,0))
+		args.player:SendChatMessage(locationHelpText, Color(255,0,0))
 		return false
 	elseif string.starts(args.text,"/l ") then
 		--subtract the /l
@@ -333,7 +399,7 @@ function PanauDrivers:OnPlayerChat(args)
 		local locationlog=io.open("locationlog.txt","a+")
 		local pVehicle = args.player:GetVehicle()
 		if pVehicle == nil then
-			args.player:SendChatMessage(locationNotInVehicle, Color(255,0,0))
+			args.player:SendChatMessage(locationNotInVehicleText, Color(255,0,0))
 			return false
 		else
 			local vPos = pVehicle:GetPosition()
@@ -349,23 +415,470 @@ function PanauDrivers:OnPlayerChat(args)
 		return true
 	end
 	--]]--
+	
+	--companies let a group of people work together on jobs.
+	--"/co" or "/company"
+	--"/co create <name>" to create a company
+	--"/co join <name>" to join a company
+	--"/co leave" to leave
+	--"/co kick <ID>" to kick a player
+	--"/co boss <ID>" to make someone else the boss
+	
+	--each company .name .employees (table of player ids), .requests (player ids of players who want to join), .boss (ID of boss), .job, .jobStatus (table of .player (ID), .status "waiting" "driving" "finished" "cancelled")
+	
+	if string.starts(args.text, "/co") then
+		local inputSlices = string.Split( args.text )
+		if #inputSlices == 1 then
+			if self.playerComps[args.player:GetId()] != nil then
+				args.player:SendChatMessage( companyInfoText .. self.playerComps[args.player:GetId()] , Color(255,255,0))
+			end
+			args.player:SendChatMessage( companyHelpCommandText , Color(255,255,0))
+			return false
+		end
+		
+		if inputSlices[2] == "help" then
+			args.player:SendChatMessage( companyHelpText1 , Color(255,255,0))
+			args.player:SendChatMessage( companyHelpText2 , Color(255,255,0))
+			args.player:SendChatMessage( companyHelpText3 , Color(255,255,0))
+			args.player:SendChatMessage( companyHelpText4 , Color(255,255,0))
+			args.player:SendChatMessage( companyHelpText5 , Color(255,255,0))
+			return false
+		end
+		
+		if inputSlices[2] == "create" then
+			if inputSlices[3] == nil then
+				args.player:SendChatMessage( companyNoNameText , Color(255,0,0))
+				return false
+			end
+			if self:getComp(inputSlices[3]) != false then
+				args.player:SendChatMessage( companyAlreadyExistsText , Color(255,0,0))
+				return false
+			end
+			if self.playerJobs[args.player:GetId()] != nil then
+				args.player:SendChatMessage( companyCreateInJobText , Color(255,0,0))
+				return false
+			end
+			
+			local comp = {}
+			comp.name = inputSlices[3]
+			comp.employees = {}
+			comp.employees[1] = args.player:GetId()
+			comp.requests = {}
+			comp.boss = args.player:GetId()
+			comp.job = nil
+			comp.employeesWaitJobs = {}
+			comp.employeesOnJobs = {}
+			comp.employeesDoneJobs = {}
+			
+			self.playerComps[args.player:GetId()] = comp.name
+			table.insert(self.companies, comp)
+			args.player:SendChatMessage( companyCreateText .. comp.name, Color(0,255,0))
+			return false
+		end
+		
+		if inputSlices[2] == "leave" then
+			if self.playerComps[args.player:GetId()] == nil then
+				args.player:SendChatMessage( companyLeaveNilText, Color(255,0,0))
+				return false
+			end
+			--[[
+			comp = self:compByPId(args.player:GetId())
+			for k, v in ipairs(comp.employees) do
+				if v == args.player:GetId() then
+					table.remove( comp.employees, k )
+				end
+			end
+			
+			--delete company if there's no employees left.
+			--else if the boss left, pass on leadership
+			if #comp.employees == 0 then
+				table.remove(self.companies, self:getComp(self.playerComps[args.player:GetId()]))
+			elseif comp.boss == args.player:GetId() then
+				comp.boss = comp.employees[1]
+			end
+			
+			self.playerComps[args.player:GetId()] = nil]]
+			
+			self:RemovePlayerFromCompany( args.player:GetId())
+			
+			args.player:SendChatMessage( companyLeaveText, Color(0,255,0))
+			
+			return false
+		end
+		
+		if inputSlices[2] == "join" then
+			if inputSlices[3] == nil then
+				args.player:SendChatMessage( companyJoinNilText, Color(255,0,0))
+				return false
+			end
+			if self:getComp(inputSlices[3]) == false then
+				args.player:SendChatMessage( companyJoinDoesntExistText, Color(255,0,0))
+				return false
+			end
+
+			comp = self.companies[self:getComp(inputSlices[3])]
+			
+			for k, v in ipairs(comp.requests) do
+				if v == args.player:GetId() then
+					args.player:SendChatMessage( companyRequestAgainText, Color(255,0,0))
+					return false
+				end
+			end
+			
+			for k, v in ipairs(comp.employees) do
+				if v == args.player:GetId() then
+					args.player:SendChatMessage( companyRequestAlreadyInText, Color(255,0,0))
+					return false
+				end
+			end
+			
+			table.insert( comp.requests, args.player:GetId() )
+			Player.GetById( comp.boss ):SendChatMessage( args.player:GetName() .. companyJoinRequestText, Color(0, 255, 255))
+			args.player:SendChatMessage( companyRequestToJoinText, Color(0,255,0))
+			return false
+		end
+		
+		if inputSlices[2] == "y" then
+			comp = self:compByPId(args.player:GetId())
+			if comp == nil then return false end
+			if comp.boss != args.player:GetId() then
+				args.player:SendChatMessage( companyNotBossText, Color(255,0,0))
+				return false
+			end
+			if #comp.requests == 0 then
+				args.player:SendChatMessage( companyNoRequestsText, Color(255,0,0))
+				return false
+			end
+			
+			local p = comp.requests[1]
+			comp.employees[#comp.employees + 1] = p
+			self.playerComps[p] = comp.name
+			table.remove(comp.requests, 1)
+			
+			self:CompanyBroadcast( comp, Player.GetById(p):GetName() .. companyAcceptPlayerText, Color(0,255,255) )
+			return false
+		end
+		
+		if inputSlices[2] == "n" then
+			comp = self:compByPId(args.player:GetId())
+			if comp == nil then return false end
+			if comp.boss != args.player:GetId() then
+				args.player:SendChatMessage( companyNotBossText, Color(255,0,0))
+				return false
+			end
+			if #comp.requests == 0 then
+				args.player:SendChatMessage( companyNoRequestsText, Color(255,0,0))
+				return false
+			end
+			
+			local p = comp.requests[1]
+			table.remove(comp.requests, 1)
+			args.player:SendChatMessage(Player.GetById(p):GetName() .. companyDenyPlayerText, Color(0,255,0))
+			Player.GetById(p):SendChatMessage( companyDeniedText, Color(0, 255, 255))
+			return false
+		end
+		
+		if inputSlices[2] == "players" then
+			comp = self:compByPId(args.player:GetId())
+			if comp == nil then 
+				args.player:SendChatMessage(companyNotInText, Color(255,0,0))
+				return false 
+			end
+			local playerList = "players:"
+			for k, v in ipairs(comp.employees) do
+				playerList = playerList .. " " .. Player.GetById(v):GetName()
+			end
+			args.player:SendChatMessage(playerList, Color(255,255,0))
+			
+			return false
+		end
+		
+		if inputSlices[2] == "kick" then
+			comp = self:compByPId(args.player:GetId())
+			if comp == nil then 
+				args.player:SendChatMessage(companyNotInText, Color(255,0,0))
+				return false 
+			end
+			if comp.boss != args.player:GetId() then
+				args.player:SendChatMessage( companyNotBossText, Color(255,0,0))
+				return false
+			end
+			if inputSlices[3] == nil then
+				args.player:SendChatMessage( companyInvalidArgText, Color(255,0,0)) 
+				return false
+			end
+			if tonumber(inputSlices[3]) == nil then
+				args.player:SendChatMessage( companyInvalidArgText, Color(255,0,0)) 
+				return false
+			end
+			if math.floor(tonumber(inputSlices[3])) != tonumber(inputSlices[3]) or 
+				tonumber(inputSlices[3]) < 0 then
+				args.player:SendChatMessage( companyInvalidArgText, Color(255,0,0)) 
+				return false
+			end
+			if Player.GetById(tonumber(inputSlices[3])) == nil then
+				args.player:SendChatMessage( companyPlayerDoesntExist, Color(255,0,0))
+				return false
+			end
+			
+			local p = tonumber(inputSlices[3])
+			
+			--tell everyone about kicking the player
+			self:CompanyBroadcast( comp, Player.GetById(p):GetName() .. companyKickPlayerText, Color(0,255,255))
+			
+			--[[
+			--kick the player
+			comp = self:compByPId(args.player:GetId())
+			for k, v in ipairs(comp.employees) do
+				if v == p then
+					table.remove( comp.employees, k )
+				end
+			end
+			
+			--delete company if there's no employees left.
+			--else if the boss left, pass on leadership
+			if #comp.employees == 0 then
+				--args.player:SendChatMessage( companyDisbandText, Color(0,255,0))
+				for k, v in ipairs( self.companies ) do
+					if v.name == comp.name then
+						table.remove( self.companies, k)
+						args.player:SendChatMessage( companyDisbandText .. " " .. k, Color(0,255,0))
+					end
+				end
+			elseif comp.boss == args.player:GetId() then
+				comp.boss = comp.employees[1]
+			end
+			
+			self.playerComps[p] = nil]]
+			
+			self:RemovePlayerFromCompany(p)
+			
+			return false
+		end
+		
+		if inputSlices[2] == "say" then
+			comp = self:compByPId(args.player:GetId())
+			if comp == nil then 
+				args.player:SendChatMessage(companyNotInText, Color(255,0,0))
+				return false 
+			end
+			--comment this out if you only want the boss to be able to use /say
+			--[[
+			if comp.boss != args.player:GetId() then
+				args.player:SendChatMessage( companyNotBossText, Color(255,0,0))
+				return false
+			end]]--
+			if inputSlices[3] == nil then
+				args.player:SendChatMessage( companyInvalidArgText, Color(255,0,0)) 
+				return false
+			end
+			
+			saytext = string.gsub(args.text, "/co say", "")
+			saytext = string.gsub(saytext, "/company say", "")
+			saytext = "[" .. comp.name .. "]" .. Player.GetName(args.player) .. ": " .. saytext
+			
+			self:CompanyBroadcast( comp, saytext, Color(255, 255, 0))
+			
+			return false
+		end
+		
+		
+		
+		
+	end
+end
+
+--simple function to split up a string where there are spaces
+function string.Split( str )
+	tab = {}
+	for s in str:gmatch("%S+") do 
+		table.insert(tab,s)
+	end
+	return tab
+end
+
+
+
+--send message with color to everyone in company
+function PanauDrivers:CompanyBroadcast( comp, message, color )
+	--local comp = self.companies[company]
+	for k, v in ipairs(comp.employees) do
+		Player.GetById(v):SendChatMessage( message, color )
+	end
+end
+
+function PanauDrivers:RemovePlayerFromCompany( playerId )
+	comp = self.companies[self:getComp(self.playerComps[playerId])]
+	player = Player.GetById( playerId )
+	
+	self.playerJobs[playerId] = nil
+	
+	--remove from company tables
+	for k, v in ipairs(comp.employees) do
+		if v == playerId then
+			table.remove( comp.employees, k )
+		end
+	end
+	
+	--cancel any job and remove vehicles
+	if comp.job != nil then
+		for k, v in ipairs(comp.employeesOnJobs) do
+			if v == playerId then
+				table.remove(comp.employeesOnJobs, k)
+				comp.vehicles[playerId]:Remove()
+			end
+		end
+		for k, v in ipairs(comp.employeesWaitJobs) do
+			if v == playerId then
+				table.remove(comp.employeesWaitJobs, k)
+			end
+		end
+		for k, v in ipairs(comp.employeesDoneJobs) do
+			if v == playerId then
+				table.remove(comp.employeesDoneJobs, k)
+			end
+		end
+		
+		if player != nil then
+			Network:Send( player, "JobCancel", true )
+		end
+	end
+	
+	--delete company if there's no employees left.
+	--else if the boss left, pass on leadership
+	if #comp.employees == 0 then
+		table.remove(self.companies, self:getComp(self.playerComps[playerId]))
+	elseif comp.boss == playerId then
+		comp.boss = comp.employees[1]
+	end
+	
+	--remove from player company
+	self.playerComps[playerId] = nil
+	
 end
 
 function PanauDrivers:PreTick( args )
 
 	if self.jobCancelTimer:GetSeconds() > 1 then
 		self.jobCancelTimer:Restart()
-		
+		--cancel jobs in queue
 		for player in Server:GetPlayers() do
 			pId = player:GetId()
 			if self.jobsToCancel[pId] == true then
 				self.playerJobTimers[pId]:Restart()
 				if self.playerJobs[pId] != nil then
-					self.playerJobs[pId].vehiclePointer:Remove()
+					if self.playerComps[pId] == nil then
+						self.playerJobs[pId].vehiclePointer:Remove()
+					end
 					self.playerJobs[pId] = nil
 				end
 				Network:Send( player, "JobCancel", true )
 				self.jobsToCancel[pId] = false
+				
+				--if player was in a company, remove them frome the company job list
+				if self.playerComps[pId] != nil then
+					comp = self.companies[self:getComp(self.playerComps[pId])]
+					for k, v in ipairs(comp.employeesOnJobs) do
+						if v == pId then
+							table.remove(comp.employeesOnJobs, k)
+							comp.vehicles[pId]:Remove()
+						end
+					end
+				end
+			end
+		end
+		
+		--process company jobs
+		for k, comp in ipairs(self.companies) do
+			if comp.job != nil then
+				if #comp.employeesOnJobs == 0 and #comp.employeesWaitJobs == 0 then
+					--remove company job and distribute bonuses if everyone is done
+					comp.job.bonus = math.floor((comp.job.bonus - 1) * companyBonusMultiplier * comp.job.reward)
+					if comp.job.bonus < 0 then comp.job.bonus = 0 end
+					self:CompanyBroadcast( comp, compFinishJobText .. tostring(comp.job.bonus), Color(0, 255, 0) )
+					for k, p in ipairs(comp.employeesDoneJobs) do
+						Player.GetById(p):SetMoney(Player.GetById(p):GetMoney() + comp.job.bonus)
+					end
+					comp.job = nil
+					
+				elseif #comp.employeesOnJobs == 0 then
+					--start the first employee's job
+					playerToStart = comp.employeesWaitJobs[1]
+					table.insert(comp.employeesOnJobs, playerToStart)
+					table.remove(comp.employeesWaitJobs, 1)
+					
+					actualPlayer = Player.GetById(playerToStart)
+					--spawn vehicle
+					local vArgs = {}
+					vArgs.model_id = comp.job.vehicle
+					--if it's the H-62 Quapaw, spawn it a bit higher up or else it'll sometimes randomly explode
+					if vArgs.model_id == 65 then
+						vArgs.position = self.locations[comp.job.start].position + Vector3(0, 2.5, 0)
+					else
+						vArgs.position = self.locations[comp.job.start].position
+					end
+					vArgs.angle = self.locations[comp.job.start].angle
+					vArgs.enabled = true
+					vArgs.world = actualPlayer:GetWorld()
+					vArgs.tone1 = Color(255, 225, 0)
+					vArgs.tone2 = Color(255, 238, 0)
+					local veh = Vehicle.Create( vArgs )
+					veh:SetUnoccupiedRemove(true)
+					veh:SetDeathRemove(true)
+					veh:SetUnoccupiedRespawnTime(nil)
+					veh:SetDeathRespawnTime(nil)
+					actualPlayer:EnterVehicle( veh, VehicleSeat.Driver )
+					comp.vehicles[playerToStart] = veh
+					--tell the player that they got the job!
+					Network:Send( actualPlayer, "JobStart", comp.job)
+					actualPlayer:SendChatMessage( compJobAcceptText , Color( 0, 255, 0 ) )
+					--put job in table
+					self.playerJobs[actualPlayer:GetId()] = comp.job
+					--generate a new job for that location, and tell the clients about it
+					self.availableJobs[comp.job.start] = self:MakeJob( comp.job.start )
+					jUpdate = {comp.job.start, self.availableJobs[comp.job.start]}
+					Network:Broadcast("JobsUpdate", jUpdate)
+				elseif #comp.employeesWaitJobs != 0 then
+					--start more employees on the job
+					--check if most recent player is far enough from the start
+					lastPlayer = Player.GetById(comp.employeesOnJobs[1])
+					distFromStart = Vector3.Distance(Player.GetPosition(lastPlayer), self.locations[comp.job.start].position)
+					if distFromStart > 30 then
+						
+						playerToStart = comp.employeesWaitJobs[1]
+						table.insert(comp.employeesOnJobs, playerToStart)
+						table.remove(comp.employeesWaitJobs, 1)
+						
+						actualPlayer = Player.GetById(playerToStart)
+						Player.SetPosition(actualPlayer, self.locations[comp.job.start].position)
+						--spawn vehicle
+						local vArgs = {}
+						vArgs.model_id = comp.job.vehicle
+						--if it's the H-62 Quapaw, spawn it a bit higher up or else it'll sometimes randomly explode
+						if vArgs.model_id == 65 then
+							vArgs.position = self.locations[comp.job.start].position + Vector3(0, 2.5, 0)
+						else
+							vArgs.position = self.locations[comp.job.start].position
+						end
+						vArgs.angle = self.locations[comp.job.start].angle
+						vArgs.enabled = true
+						vArgs.world = actualPlayer:GetWorld()
+						vArgs.tone1 = Color(255, 225, 0)
+						vArgs.tone2 = Color(255, 238, 0)
+						local veh = Vehicle.Create( vArgs )
+						veh:SetUnoccupiedRemove(true)
+						veh:SetDeathRemove(true)
+						veh:SetUnoccupiedRespawnTime(nil)
+						veh:SetDeathRespawnTime(nil)
+						actualPlayer:EnterVehicle( veh, VehicleSeat.Driver )
+						comp.vehicles[playerToStart] = veh
+						--tell the player that they got the job!
+						Network:Send( actualPlayer, "JobStart", comp.job)
+						actualPlayer:SendChatMessage( compJobAcceptText , Color( 0, 255, 0 ) )
+						--put job in table
+						self.playerJobs[actualPlayer:GetId()] = comp.job						
+					end
+				end
 			end
 		end
 	end
@@ -380,25 +893,54 @@ function PanauDrivers:OnPlayerDeath( args )
 end
 
 function PanauDrivers:PlayerTakeJob( args, player )
+	--check if they're in a vehicle
 	if player:GetState() == PlayerState.InVehiclePassenger or player:GetVehicle() != nil then
-		player:SendChatMessage("can't start a job when you're in a vehicle", Color( 255, 0, 0 ))
+		player:SendChatMessage( jobNotInVehicleText , Color( 255, 0, 0 ))
         return false
     end
-	
+	--cooldown timer
 	if self.playerJobTimers[player:GetId()]:GetSeconds() < 15 then
-		player:SendChatMessage("slow down, wait a bit before starting a new job!", Color( 255, 0, 0 ))
+		player:SendChatMessage( jobWaitText, Color( 255, 0, 0 ))
 		return false
 	end
-	
+	--make sure the job is valid
 	local thatJob = self.availableJobs[args.job]
 	if thatJob == nil then
-		player:SendChatMessage("you tried to accept a job that doesn't exist!", Color( 255, 0, 0 ) )
+		player:SendChatMessage( jobDoesntExistText , Color( 255, 0, 0 ) )
 		return false
 	end
 	if type(thatJob.vehicle) != "number" then
-		player:SendChatMessage("job does not have a valid vehicle, something is broken", Color( 255, 0, 0 ) )
+		player:SendChatMessage( jobInvalidVehicleText , Color( 255, 0, 0 ) )
 		return false
 	end
+	--do special stuff for players in companies
+	if self.playerComps[player:GetId()] != nil then
+		comp = self.companies[self:getComp(self.playerComps[player:GetId()])]
+		if comp != nil then
+			if comp.boss != player:GetId() then
+				player:SendChatMessage( jobTakeNotBossText, Color( 255, 0, 0))
+				return false
+			end
+			if comp.job != nil then
+				player:SendChatMessage( companyAlreadyOnJobText, Color( 255, 0, 0))
+				return false
+			end
+			--start the company job
+			comp.job = thatJob
+			comp.job.bonus = 0
+			--add all current employees to table of employees waiting to start
+			for k, v in ipairs( comp.employees ) do
+				table.insert( comp.employeesWaitJobs, v)
+			end
+			comp.employeesOnJobs = {}
+			comp.employeesDoneJobs = {}
+			comp.vehicles = {}
+		
+			self:CompanyBroadcast( comp, comp.name .. " started job: " .. thatJob.description, Color( 0, 255, 0))
+			return false
+		end
+	end
+	
 	local jobDist = self.locations[thatJob.start].position:Distance(player:GetPosition())
 	if jobDist < 20 then
 		--restart timer
@@ -426,7 +968,7 @@ function PanauDrivers:PlayerTakeJob( args, player )
 		thatJob.vehiclePointer = veh
 		--tell the player that they got the job!
 		Network:Send( player, "JobStart", thatJob)
-		player:SendChatMessage("job accepted", Color( 0, 255, 0 ) )
+		player:SendChatMessage( jobAcceptText , Color( 0, 255, 0 ) )
 		--put job in table
 		self.playerJobs[player:GetId()] = thatJob
 		--generate a new job for that location, and tell the clients about it
@@ -434,14 +976,14 @@ function PanauDrivers:PlayerTakeJob( args, player )
 		jUpdate = {args.job, self.availableJobs[args.job]}
 		Network:Broadcast("JobsUpdate", jUpdate)
 	else
-		player:SendChatMessage("get closer to take the job", Color( 255, 0, 0 ) )
+		player:SendChatMessage( jobGetCloserText , Color( 255, 0, 0 ) )
 	end
 end
 
 function PanauDrivers:PlayerCompleteJob( args, player )
 	local thatJob = self.playerJobs[player:GetId()]
 	if thatJob == nil then
-		print("player tried to completely a nil job, something went horribly wrong")
+		print("player tried to complete a nil job, something went horribly wrong")
 		return
 	end
 	local destDist = self.locations[thatJob.destination].position:Distance(player:GetPosition())
@@ -449,18 +991,46 @@ function PanauDrivers:PlayerCompleteJob( args, player )
 	if pVehicle == nil then
 		return
 	end
-	local vVel = pVehicle:GetLinearVelocity()
-	if vVel.x < 0.1 and vVel.x > -0.1 and vVel.y < 0.1 and vVel.y > -0.1 and vVel.z < 0.1 and vVel.z > -0.1 then
+	local vVel = pVehicle:GetLinearVelocity():Length()
+	stopped = false
+	if vVel < 1 then
 		stopped = true
 	end
-	if destDist < 20 and pVehicle == thatJob.vehiclePointer and stopped then
+	
+	playerId = player:GetId()
+	
+	--if player is in a company
+	if destDist < 20 and self.playerComps[playerId] != nil and 
+		pVehicle == comp.vehicles[playerId] and stopped then
+		
 		player:GetVehicle():Remove()
 		local reward = thatJob.reward
 		player:SetMoney(player:GetMoney() + reward)
-		self.playerJobs[player:GetId()] = nil
+		self.playerJobs[playerId] = nil
 		Network:Send( player, "JobFinish", reward)
-		player:SendChatMessage("job completed! Reward $" .. reward, Color( 0, 255, 0 ) )
-		self.playerJobTimers[player:GetId()]:Restart()
+		player:SendChatMessage( jobRewardText .. reward, Color( 0, 255, 0 ) )
+		self.playerJobTimers[playerId]:Restart()
+		comp = self.companies[self:getComp(self.playerComps[playerId])]
+		table.insert(comp.employeesDoneJobs, playerId)
+		for k, v in ipairs(comp.employeesOnJobs) do
+			if v == playerId then
+				table.remove(comp.employeesOnJobs, k)
+			end
+		end
+		comp.job.bonus = comp.job.bonus + 1
+		
+	end
+	
+	--if player isn't in a company
+	if destDist < 20 and self.playerComps[playerId] == nil and pVehicle == thatJob.vehiclePointer and stopped then
+		
+		player:GetVehicle():Remove()
+		local reward = thatJob.reward
+		player:SetMoney(player:GetMoney() + reward)
+		self.playerJobs[playerId] = nil
+		Network:Send( player, "JobFinish", reward)
+		player:SendChatMessage( jobRewardText .. reward, Color( 0, 255, 0 ) )
+		self.playerJobTimers[playerId]:Restart()
 	end
 	
 end
@@ -473,7 +1043,11 @@ function PanauDrivers:ClientModuleLoad( args )
 end
 
 function PanauDrivers:PlayerQuit( args )
-	self.playerJobs[args.player:GetId()] = nil
+	pId = args.player:GetId()
+	self.playerJobs[pId] = nil
+	if self.playerComps[pId] != nil then
+		self:RemovePlayerFromCompany(pId)
+	end
 end
 
 PanauDrivers = PanauDrivers()

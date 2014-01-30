@@ -1,9 +1,9 @@
 -- Panau Runners (client)
--- 0.1.1
+-- 0.2.0_beta
 -- A delivery gamemode in the style of "Crazy Taxi"
 -- BluShine
 -- released 1/12/2014
--- updated 1/14/2014
+-- updated 1/30/2014
 
 class 'PanauDrivers'
 
@@ -173,16 +173,20 @@ function PanauDrivers:JobStart( args )
 end
 
 function PanauDrivers:JobFinish( args )
-	self.job = nil
-	Waypoint:Remove()
+	if self.job != nil then
+		Waypoint:Remove()
+		self.job = nil
+	end
 	if self.locationsAutoHide == true then
 		self.locationsVisible = true
 	end
 end
 
 function PanauDrivers:JobCancel( args )
-	self.job = nil
-	Waypoint:Remove()
+	if self.job != nil then
+		Waypoint:Remove()
+		self.job = nil
+	end
 	if self.locationsAutoHide == true then
 		self.locationsVisible = true
 	end
