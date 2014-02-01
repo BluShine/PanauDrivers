@@ -789,7 +789,7 @@ end
 
 function PanauDrivers:PreTick( args )
 
-	if self.jobCancelTimer:GetSeconds() > 1 then
+	if self.jobCancelTimer:GetSeconds() > 2 then
 		self.jobCancelTimer:Restart()
 		--cancel jobs in queue
 		for player in Server:GetPlayers() do
@@ -834,7 +834,7 @@ function PanauDrivers:PreTick( args )
 				elseif #comp.employeesOnJobs == 0 then
 					--start the first employee's job
 					playerToStart = comp.employeesWaitJobs[1]
-					table.insert(comp.employeesOnJobs, playerToStart)
+					table.insert(comp.employeesOnJobs, 1, playerToStart)
 					table.remove(comp.employeesWaitJobs, 1)
 					
 					actualPlayer = Player.GetById(playerToStart)
@@ -876,7 +876,7 @@ function PanauDrivers:PreTick( args )
 					if distFromStart > 30 then
 						
 						playerToStart = comp.employeesWaitJobs[1]
-						table.insert(comp.employeesOnJobs, playerToStart)
+						table.insert(comp.employeesOnJobs, 1, playerToStart)
 						table.remove(comp.employeesWaitJobs, 1)
 						
 						actualPlayer = Player.GetById(playerToStart)
