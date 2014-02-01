@@ -1,5 +1,5 @@
 -- Panau Runners (client)
--- 0.2.0_beta
+-- 0.2.1_beta
 -- A delivery gamemode in the style of "Crazy Taxi"
 -- BluShine
 -- released 1/12/2014
@@ -24,6 +24,7 @@ function PanauDrivers:__init()
 	--variables
 	self.isVisible = true
 	self.arrowVisible = true
+	self.arrowVertical = false
 	self.locationsVisible = true
 	self.locationsAutoHide = true
 	self.locations = {}
@@ -55,6 +56,14 @@ function PanauDrivers:__init()
     arrowCheck:GetCheckBox():SetChecked( self.arrowVisible )
     arrowCheck:GetCheckBox():Subscribe( "CheckChanged", 
         function() self.arrowVisible = arrowCheck:GetCheckBox():GetChecked() end )
+	
+	local arrowAxis = LabeledCheckBox.Create( self.configW )
+    arrowAxis:SetSize( Vector2( 300, 20 ) )
+    arrowAxis:SetDock( GwenPosition.Top )
+    arrowAxis:GetLabel():SetText( "Use vertical arrow" )
+    arrowAxis:GetCheckBox():SetChecked( self.arrowVertical )
+    arrowAxis:GetCheckBox():Subscribe( "CheckChanged", 
+        function() self.arrowVertical = arrowAxis:GetCheckBox():GetChecked() end )
 		
 	local locationCheck = LabeledCheckBox.Create( self.configW )
     locationCheck:SetSize( Vector2( 300, 20 ) )
@@ -141,7 +150,8 @@ function PanauDrivers:ModulesLoad()
             text = 
                 "Panau Drivers is a script that generates delivery " ..
                 "jobs all over panau.\n\nTo configure or disable it, " ..
-                "type /panaudrivers or /drive in chat."
+                "type /panaudrivers or /drive in chat to configure UI options.\n\n" ..
+				"types /co in chat to create companies and do jobs with other players"
         } )
 end
 
@@ -214,7 +224,7 @@ function PanauDrivers:KeyDown( a )
 	end
 end
 
-function PanauDrivers:DrawLocation(k, v, dist, dir)
+function PanauDrivers:DrawLocation(k, v, dist, dir, jobDistance)
 	local pos = v.position + Vector3( 0, 10, 0 )
 	local angle = Angle( Camera:GetAngle().yaw, 0, math.pi ) * Angle( math.pi, 0, 0 )
 	
@@ -222,15 +232,16 @@ function PanauDrivers:DrawLocation(k, v, dist, dir)
 	local textScale = 1.0
 	local textAlpha = 255
 	if dist <= 64 then
-		textAlpha = 0
-	elseif dist <= 256 then
 		textAlpha = 255
+		textScale = 0.1
+	elseif dist <= 128 then
+		textAlpha = 196
 		textScale = 0.2
-	elseif dist <= 512 then
-		textAlpha = 255
-		textScale = 0.5
-	else
+	elseif dist <= 256 then
 		textAlpha = 128
+		textScale = 0.3
+	else
+		textAlpha = 0
 	end
 
 	local text = v.name
@@ -247,14 +258,34 @@ function PanauDrivers:DrawLocation(k, v, dist, dir)
 	if self.locationsVisible == true then
 		self:DrawShadowedText( Vector3( 0, 0, 0 ), text, Color( 255, 255, 255, textAlpha ), textSize ) end
 	
-	if dist <= 256 and self.locationsVisible == true then
+	if self.locationsVisible == true then
 		t2 = Transform3()
 		local upAngle = Angle(0, math.pi/2, 0)
 		t2:Translate(v.position):Rotate(upAngle)
 		Render:SetTransform(t2)
-		Render:FillCircle( Vector3(0,0,0), 20, Color(255, 255, 255, 48))
+		Render:FillCircle( Vector3(0,0,0), 20, Color(255, 255, 255, 32))
 		--render arrow
 		if self.job == nil then
+			--color arrow based on distance
+			local arrowColor = Color(0,0,0,128)
+			if jobDistance < 1000 then
+				arrowColor = Color(64, 255, 128, 128)
+			elseif jobDistance < 2000 then
+				arrowColor = Color(128, 255, 196, 128)
+			elseif jobDistance < 4000 then
+				arrowColor = Color(128, 255, 0, 128)
+			elseif jobDistance < 6000 then
+				arrowColor = Color(255, 255, 0, 128)
+			elseif jobDistance < 8000 then
+				arrowColor = Color(255, 128, 0, 128)
+			elseif jobDistance < 10000 then
+				arrowColor = Color(255, 128, 0, 128)
+			elseif jobDistance < 14000 then
+				arrowColor = Color(255, 0, 0, 128)
+			else
+				arrowColor = Color(128, 0, 255, 128)
+			end
+			--draw arrow
 			Render:ResetTransform()
 			t3 = Transform3()
 			t3:Translate(v.position)
@@ -266,9 +297,9 @@ function PanauDrivers:DrawLocation(k, v, dist, dir)
 			shaft2 = Vector3( 0, 7, 0 )
 			shaft3 = shaft1 + (dir * 4)
 			shaft4 = shaft2 + (dir * 4)
-			Render:FillTriangle(arrow1, arrow2, arrow3, Color(64, 255, 64, 128))
-			Render:FillTriangle(shaft1, shaft2, shaft3, Color(64, 255, 64, 128))
-			Render:FillTriangle(shaft2, shaft3, shaft4, Color(64, 255, 64, 128))
+			Render:FillTriangle(arrow1, arrow2, arrow3, arrowColor)
+			Render:FillTriangle(shaft1, shaft2, shaft3, arrowColor)
+			Render:FillTriangle(shaft2, shaft3, shaft4, arrowColor)
 		end
 	end
 	
@@ -303,7 +334,7 @@ function PanauDrivers:Render()
 			local camPos = Camera:GetPosition()
 			local jobToRender = self.jobsTable[k]
 			if v.position.x > camPos.x - 1028 and v.position.x < camPos.x + 1028 and v.position.z > camPos.z - 1028 and 	v.position.z < camPos.z + 1028 and jobToRender.direction != nil then
-				self:DrawLocation(k, v, v.position:Distance2D( Camera:GetPosition()), jobToRender.direction)
+				self:DrawLocation(k, v, v.position:Distance2D( Camera:GetPosition()), jobToRender.direction, jobToRender.distance)
 			end
 		end
 	end
@@ -315,19 +346,32 @@ function PanauDrivers:Render()
 		textPos = textPos - Vector2( Render:GetTextWidth(text) / 2, 0 )
 		Render:DrawText( textPos + Vector2( 1, 1 ), text, Color( 0, 0, 0, 80 ) )
 		Render:DrawText( textPos, text, Color( 192, 255, 192 ))
+		--draw destination circle
+		destPos = self.locations[self.job.destination].position
+		destDist = Vector3.Distance(destPos, LocalPlayer:GetPosition())
+		if destDist < 500 then
+			t2 = Transform3()
+			local upAngle = Angle(0, math.pi/2, 0)
+			t2:Translate(destPos):Rotate(upAngle)
+			Render:SetTransform(t2)
+			Render:FillCircle( Vector3(0,0,0), 15, Color(64, 255, 64, 64))
+		end
 		--job arrow
 		pVehicle = LocalPlayer:GetVehicle()
 		if pVehicle != nil and self.arrowVisible == true then
 			--calculate arrow direction
-			destPos = self.locations[self.job.destination].position
 			arrowDir = pVehicle:GetPosition() - destPos
 			arrowDir:Normalize()
 			arrowDir = arrowDir
 			arrowDir.y = -arrowDir.y
 			arrowDir.z = -arrowDir.z
 			arrowDir.x = -arrowDir.x
-			dirCp = arrowDir:Cross( Vector3(0, 1, 0) )
-			dirCn = Vector3(0, 1, 0):Cross( arrowDir )
+			local arrowAxis = Vector3(0, 1, 0)
+			if (self.arrowVertical == true) then
+				arrowAxis = Vector3(0, 0, 1)
+			end
+			dirCp = arrowDir:Cross( arrowAxis )
+			dirCn = arrowAxis:Cross( arrowDir )
 			Render:ResetTransform()
 			--make the arrow segments
 			arrowScale = Render.Height * .05
@@ -349,17 +393,19 @@ function PanauDrivers:Render()
 			shaft4 = ang * shaft4
 			--turn 3d in to 2d
 			center = Vector2( Render.Width / 2, Render.Height / 2 )
-			arrow1 = Vector2( -arrow1.x, arrow1.y ) + center
-			arrow2 = Vector2( -arrow2.x, arrow2.y ) + center
-			arrow3 = Vector2( -arrow3.x, arrow3.y ) + center
+			arrow1 = Vector2( -arrow1.x, arrow1.y) + center
+			arrow2 = Vector2( -arrow2.x, arrow2.y) + center
+			arrow3 = Vector2( -arrow3.x, arrow3.y) + center
 			shaft1 = Vector2( -shaft1.x, shaft1.y ) + center
 			shaft2 = Vector2( -shaft2.x, shaft2.y ) + center
 			shaft3 = Vector2( -shaft3.x, shaft3.y ) + center
 			shaft4 = Vector2( -shaft4.x, shaft4.y ) + center
+			
 			--render everything
-			Render:FillTriangle(arrow1, arrow2, arrow3, Color(64, 255, 64, 128))
-			Render:FillTriangle(shaft1, shaft2, shaft3, Color(64, 255, 64, 128))
-			Render:FillTriangle(shaft2, shaft3, shaft4, Color(64, 255, 64, 128))
+			local arrowColor = Color(64, 255, 64, 128)
+			Render:FillTriangle(arrow1, arrow2, arrow3, arrowColor)
+			Render:FillTriangle(shaft1, shaft2, shaft3, arrowColor)
+			Render:FillTriangle(shaft2, shaft3, shaft4, arrowColor)
 		end
 	end
 	

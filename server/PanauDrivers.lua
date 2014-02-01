@@ -1,5 +1,5 @@
 -- Panau Runners (server)
--- 0.2.0_beta
+-- 0.2.1_beta
 -- A delivery gamemode in the style of "Crazy Taxi"
 -- BluShine
 -- released 1/12/2014
@@ -25,6 +25,7 @@ local companyHelpText2 = "/co join companyname - join a company"
 local companyHelpText3 = "/co players - lists players in your company"
 local companyHelpText4 = "/co leave - leave your company"
 local companyHelpText5 = "/co kick playerID - kick a player (press f6 for IDs)"
+local companyHelpText6 = "/co say - send a message only to people in your company"
 local companyNoNameText = "you need a name for your company"
 local companyAlreadyExistsText = "this company already exists"
 local companyCreateInJobText = "can't create a company if you're on a job"
@@ -78,8 +79,13 @@ local easy = 1
 local medium = 1.33
 local hard = 1.66
 local harder = 2
+--number of jobs it will generate before choosing the shortest one
+--WARNING: the higher you set this, the longer job generation will take. 
+--Large values could create lag when generating new jobs.
+--Also, if you set this really high, you might start getting lots of similar jobs.
+local shortJobBias = 2
 --distance multiplier for rewards
-local rewardMultiplier = 0.05
+local rewardMultiplier = 0.2
 --bonus multiplier per player completing a company job, default is 10%
 local companyBonusMultiplier = 0.1
 
@@ -199,7 +205,15 @@ end
 function PanauDrivers:GenerateJobs()
 	print("generating jobs")
 	for key,location in pairs(self.locations) do
-		self.availableJobs[key] = self:MakeJob(key)
+		local job = self:MakeJob(key)
+		--search for shorter jobs
+		for i = 1,shortJobBias do
+			job2 = self:MakeJob(key)
+			if job2.distance < job.distance then
+				job = job2
+			end
+		end
+		self.availableJobs[key] = job
 	end
 end
 
@@ -226,6 +240,7 @@ function PanauDrivers:MakeJob(key)
 	job.direction = direction
 	--calculate a reward
 	local distance = startPoint:Distance(destPoint)
+	job.distance = distance
 	local multiplier = self:GetVehicleRewardMultiplier(job.vehicle)
 	job.reward = math.floor(multiplier * distance * rewardMultiplier)
 	job.description = "deliver to " .. dest.name
@@ -444,6 +459,7 @@ function PanauDrivers:OnPlayerChat(args)
 			args.player:SendChatMessage( companyHelpText3 , Color(255,255,0))
 			args.player:SendChatMessage( companyHelpText4 , Color(255,255,0))
 			args.player:SendChatMessage( companyHelpText5 , Color(255,255,0))
+			args.player:SendChatMessage( companyHelpText6 , Color(255,255,0))
 			return false
 		end
 		
@@ -913,7 +929,7 @@ function PanauDrivers:PlayerTakeJob( args, player )
         return false
     end
 	--cooldown timer
-	if self.playerJobTimers[player:GetId()]:GetSeconds() < 15 then
+	if self.playerJobTimers[player:GetId()]:GetSeconds() < 5 then
 		player:SendChatMessage( jobWaitText, Color( 255, 0, 0 ))
 		return false
 	end
