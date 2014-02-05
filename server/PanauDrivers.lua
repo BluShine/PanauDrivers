@@ -88,6 +88,9 @@ local shortJobBias = 2
 local rewardMultiplier = 0.2
 --bonus multiplier per player completing a company job, default is 10%
 local companyBonusMultiplier = 0.1
+--cooldown time for jobs, don't set this too low or players could spam jobs and lag the server
+--default: 15 (seconds), recommended minimum: 5
+local jobCooldownTime = 15
 
 ----------------------------utility functions------------------------
 --simple function to check if a string starts with a string
@@ -209,7 +212,7 @@ function PanauDrivers:GenerateJobs()
 		--search for shorter jobs
 		for i = 1,shortJobBias do
 			job2 = self:MakeJob(key)
-			if job2.distance < job.distance then
+			if job2.distance < job.distance and job2.distance > 100 then
 				job = job2
 			end
 		end
@@ -929,7 +932,7 @@ function PanauDrivers:PlayerTakeJob( args, player )
         return false
     end
 	--cooldown timer
-	if self.playerJobTimers[player:GetId()]:GetSeconds() < 5 then
+	if self.playerJobTimers[player:GetId()]:GetSeconds() < jobCooldownTime then
 		player:SendChatMessage( jobWaitText, Color( 255, 0, 0 ))
 		return false
 	end

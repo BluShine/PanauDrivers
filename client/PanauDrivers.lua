@@ -24,7 +24,7 @@ function PanauDrivers:__init()
 	--variables
 	self.isVisible = true
 	self.arrowVisible = true
-	self.arrowVertical = false
+	self.arrowSuper = false
 	self.locationsVisible = true
 	self.locationsAutoHide = true
 	self.locations = {}
@@ -60,10 +60,10 @@ function PanauDrivers:__init()
 	local arrowAxis = LabeledCheckBox.Create( self.configW )
     arrowAxis:SetSize( Vector2( 300, 20 ) )
     arrowAxis:SetDock( GwenPosition.Top )
-    arrowAxis:GetLabel():SetText( "Use vertical arrow" )
-    arrowAxis:GetCheckBox():SetChecked( self.arrowVertical )
+    arrowAxis:GetLabel():SetText( "Super arrow mode" )
+    arrowAxis:GetCheckBox():SetChecked( self.arrowSuper )
     arrowAxis:GetCheckBox():Subscribe( "CheckChanged", 
-        function() self.arrowVertical = arrowAxis:GetCheckBox():GetChecked() end )
+        function() self.arrowSuper = arrowAxis:GetCheckBox():GetChecked() end )
 		
 	local locationCheck = LabeledCheckBox.Create( self.configW )
     locationCheck:SetSize( Vector2( 300, 20 ) )
@@ -359,53 +359,65 @@ function PanauDrivers:Render()
 		--job arrow
 		pVehicle = LocalPlayer:GetVehicle()
 		if pVehicle != nil and self.arrowVisible == true then
-			--calculate arrow direction
-			arrowDir = pVehicle:GetPosition() - destPos
-			arrowDir:Normalize()
-			arrowDir = arrowDir
-			arrowDir.y = -arrowDir.y
-			arrowDir.z = -arrowDir.z
-			arrowDir.x = -arrowDir.x
-			local arrowAxis = Vector3(0, 1, 0)
-			if (self.arrowVertical == true) then
-				arrowAxis = Vector3(0, 0, 1)
+			local multiArrow = 1
+			if (self.arrowSuper == true) then
+				multiArrow = 3
 			end
-			dirCp = arrowDir:Cross( arrowAxis )
-			dirCn = arrowAxis:Cross( arrowDir )
-			Render:ResetTransform()
-			--make the arrow segments
-			arrowScale = Render.Height * .05
-			arrow1 = dirCp * arrowScale * 2
-			arrow2 = dirCn * arrowScale * 2
-			arrow3 = Vector3( 0, 0, 0 ) - (arrowDir * arrowScale * 2)
-			shaft1 = dirCp * arrowScale
-			shaft2 = dirCn * arrowScale
-			shaft3 = shaft1 + (arrowDir * arrowScale * 2)
-			shaft4 = shaft2 + (arrowDir * arrowScale * 2)
-			--multiply by camera angle to flatten everything relative to the camera
-			local ang = Camera:GetAngle():Inverse()
-			arrow1 = ang * arrow1
-			arrow2 = ang * arrow2
-			arrow3 = ang * arrow3
-			shaft1 = ang * shaft1
-			shaft2 = ang * shaft2
-			shaft3 = ang * shaft3
-			shaft4 = ang * shaft4
-			--turn 3d in to 2d
-			center = Vector2( Render.Width / 2, Render.Height / 2 )
-			arrow1 = Vector2( -arrow1.x, arrow1.y) + center
-			arrow2 = Vector2( -arrow2.x, arrow2.y) + center
-			arrow3 = Vector2( -arrow3.x, arrow3.y) + center
-			shaft1 = Vector2( -shaft1.x, shaft1.y ) + center
-			shaft2 = Vector2( -shaft2.x, shaft2.y ) + center
-			shaft3 = Vector2( -shaft3.x, shaft3.y ) + center
-			shaft4 = Vector2( -shaft4.x, shaft4.y ) + center
-			
-			--render everything
-			local arrowColor = Color(64, 255, 64, 128)
-			Render:FillTriangle(arrow1, arrow2, arrow3, arrowColor)
-			Render:FillTriangle(shaft1, shaft2, shaft3, arrowColor)
-			Render:FillTriangle(shaft2, shaft3, shaft4, arrowColor)
+			while (multiArrow > 0) do
+				--calculate arrow direction
+				--add -10 to position to make the arrow's origin a bit above the vehicle
+				arrowDir = pVehicle:GetPosition() - destPos
+				arrowDir:Normalize()
+				arrowDir = arrowDir + Vector3(0, .1, 0)
+				arrowDir.y = -arrowDir.y
+				arrowDir.z = -arrowDir.z
+				arrowDir.x = -arrowDir.x
+				local arrowAxis = Vector3(0, 1, 0)
+				if (multiArrow == 3) then
+					arrowAxis = Vector3(0, 0, 1)
+				end
+				if (multiArrow == 2) then
+					arrowAxis = Vector3(1, 0, 0)
+				end
+				dirCp = arrowDir:Cross( arrowAxis )
+				dirCn = arrowAxis:Cross( arrowDir )
+				Render:ResetTransform()
+				--make the arrow segments
+				arrowScale = Render.Height * .05
+				arrow1 = dirCp * arrowScale * 2
+				arrow2 = dirCn * arrowScale * 2
+				arrow3 = Vector3( 0, 0, 0 ) - (arrowDir * arrowScale * 2)
+				shaft1 = dirCp * arrowScale
+				shaft2 = dirCn * arrowScale
+				shaft3 = shaft1 + (arrowDir * arrowScale * 2)
+				shaft4 = shaft2 + (arrowDir * arrowScale * 2)
+				--multiply by camera angle to flatten everything relative to the camera
+				local ang = Camera:GetAngle():Inverse()
+				arrow1 = ang * arrow1
+				arrow2 = ang * arrow2
+				arrow3 = ang * arrow3
+				shaft1 = ang * shaft1
+				shaft2 = ang * shaft2
+				shaft3 = ang * shaft3
+				shaft4 = ang * shaft4
+				--turn 3d in to 2d
+				center = Vector2( Render.Width / 2, Render.Height / 3 )
+				arrow1 = Vector2( -arrow1.x, arrow1.y) + center
+				arrow2 = Vector2( -arrow2.x, arrow2.y) + center
+				arrow3 = Vector2( -arrow3.x, arrow3.y) + center
+				shaft1 = Vector2( -shaft1.x, shaft1.y ) + center
+				shaft2 = Vector2( -shaft2.x, shaft2.y ) + center
+				shaft3 = Vector2( -shaft3.x, shaft3.y ) + center
+				shaft4 = Vector2( -shaft4.x, shaft4.y ) + center
+				
+				--render everything
+				local arrowColor = Color(64, 255, 64, 128)
+				Render:FillTriangle(arrow1, arrow2, arrow3, arrowColor)
+				Render:FillTriangle(shaft1, shaft2, shaft3, arrowColor)
+				Render:FillTriangle(shaft2, shaft3, shaft4, arrowColor)
+				
+				multiArrow = multiArrow - 1
+			end
 		end
 	end
 	
