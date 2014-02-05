@@ -1,9 +1,9 @@
 -- Panau Runners (client)
--- 0.2.1_beta
+-- 0.2.2
 -- A delivery gamemode in the style of "Crazy Taxi"
 -- BluShine
 -- released 1/12/2014
--- updated 1/30/2014
+-- updated 2/4/2014
 
 class 'PanauDrivers'
 
